@@ -2,6 +2,7 @@
 # * ********************************************************************************************************* *
 # *
 # * Copyright 2024 NXP
+# * Copyright 2025 Oidis
 # *
 # * SPDX-License-Identifier: BSD-3-Clause
 # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -28,4 +29,4 @@ fi
 
 cd "$projectRoot"/src/builder || exit 1
 
-docker-compose -f builder.yml up --force-recreate --build --remove-orphans --abort-on-container-exit || exit 1
+docker-compose -f builder.yml up --force-recreate --renew-anon-volumes --build --remove-orphans --abort-on-container-exit || exit 1

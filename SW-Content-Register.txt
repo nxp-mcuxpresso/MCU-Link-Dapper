@@ -1,4 +1,4 @@
-Release Name: MCU-Link-Dapper v2025.0.0
+Release Name: MCU-Link-Dapper v2025.0.1
 
 webix-dapper-py
 Description: Module for application to target communication over CMSIS-DAP.

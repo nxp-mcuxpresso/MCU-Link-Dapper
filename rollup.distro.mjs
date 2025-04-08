@@ -82,6 +82,14 @@ export default [
                         dest: "build/target/webix-dapper-py/dapper"
                     },
                     {
+                        src: ["src/python/dapper/core/*.py"],
+                        dest: "build/target/webix-dapper-py/dapper/core"
+                    },
+                    {
+                        src: ["src/python/dapper/interfaces/*.py"],
+                        dest: "build/target/webix-dapper-py/dapper/interfaces"
+                    },
+                    {
                         src: ["src/python/requirements.txt", "src/python/setup.py"],
                         dest: "build/target/webix-dapper-py"
                     },

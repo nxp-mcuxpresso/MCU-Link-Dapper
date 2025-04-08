@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Black">
-    <option name="sdkName" value="Python 3.12 (webix-dapper)" />
+    <option name="sdkName" value="Python 3.13 (MCU-Link-Dapper)" />
   </component>
   <component name="CMakePythonSetting">
-    <option name="pythonIntegrationState" value="YES" />
+    <option name="pythonIntegrationState" value="NO" />
   </component>
   <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$" />
   <component name="CidrRootsConfiguration">
@@ -13,6 +13,7 @@
       <file path="$PROJECT_DIR$/test" />
     </sourceRoots>
     <excludeRoots>
+      <file path="$PROJECT_DIR$/.venv" />
       <file path="$PROJECT_DIR$/build" />
       <file path="$PROJECT_DIR$/cmake-build-docker" />
       <file path="$PROJECT_DIR$/src/wasm/build_wasm" />

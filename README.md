@@ -181,10 +181,13 @@ snakeviz <path-to-prof-file>
 
 ## License
 
-This software is owned or controlled by NXP Semiconductors.
+This software has been owned or controlled by NXP Semiconductors.
+Now this fork of the original software is owned or controlled by Oidis organisation.
+
 Use of this software is governed by the BSD-3-Clause License distributed with this material.
 
 See the `LICENSE.txt` file distributed for more details.
 
 ---
 Copyright 2023-2025 [NXP](http://nxp.com/)
+Copyright 2025 [Oidis](https://oidis.org/)

@@ -1,6 +1,7 @@
 # * ********************************************************************************************************* *
 # *
 # * Copyright 2024 NXP
+# * Copyright 2025 Oidis
 # *
 # * SPDX-License-Identifier: BSD-3-Clause
 # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -8,6 +9,13 @@
 # *
 # * ********************************************************************************************************* *
 
+# mirror from src/python
+wasmtime==24.0.0
+pyusb==1.2.1
+hidapi==0.14.0.post4; sys_platform == 'darwin' or sys_platform == 'win32'
+libusb_package
+
+# dev only dependencies
 pytest
 # due to python 3.8 support
 pylint==3.2.7

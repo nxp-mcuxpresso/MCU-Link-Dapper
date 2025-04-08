@@ -2,6 +2,7 @@
 # * ********************************************************************************************************* *
 # *
 # * Copyright 2024 NXP
+# * Copyright 2025 Oidis
 # *
 # * SPDX-License-Identifier: BSD-3-Clause
 # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -51,6 +52,8 @@ export PYTHONPATH=$(pwd):$(pwd)/src:$(pwd)/test
 export PYTHONUNBUFFERED=1
 pylint ./src ./test || exit 1
 
-codecheck --fix --disable-check PYTEST --parent-branch release || exit 1
+if command - v codecheck >/dev/null 2>&1; then
+  codecheck --fix --disable-check PYTEST --parent-branch main || exit 1
+fi
 
 echo "Lint done"

@@ -4,6 +4,7 @@
 # * ********************************************************************************************************* *
 # *
 # * Copyright 2024 NXP
+# * Copyright 2025 Oidis
 # *
 # * SPDX-License-Identifier: BSD-3-Clause
 # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -12,12 +13,10 @@
 # * ********************************************************************************************************* *
 import ctypes
 import os.path
-from typing import Any
-
-import usb.core
-from typing_extensions import Optional
+from typing import Any, Optional
 
 from python.dapper import Uint8Array, WebixDapper
+from python.dapper.interfaces import Interface
 
 # pylint: disable=no-member
 
@@ -119,7 +118,7 @@ class MockDapper(WebixDapper):
         # dummy
         pass
 
-    def open(self, device: Optional[usb.core.Device] = None) -> None:
+    def open(self, device: Optional[Interface] = None) -> None:
         def read_handler() -> Uint8Array:
             data = self.trace_data["inbound"][self.inbound_index]
             self.inbound_index += 1

@@ -8,7 +8,7 @@
 # *
 # * ********************************************************************************************************* *
 
-wasmtime==25.0.0
+wasmtime==24.0.0
 pyusb==1.2.1
-hidapi==0.14.0.post3
+hidapi==0.14.0.post4; sys_platform == 'darwin' or sys_platform == 'win32'
 libusb_package

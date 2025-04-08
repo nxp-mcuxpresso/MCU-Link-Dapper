@@ -1,5 +1,6 @@
 /*
  * Copyright 2024 NXP
+ * Copyright 2025 Oidis
  * All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -12,7 +13,7 @@ import unusedImports from "eslint-plugin-unused-imports";
 
 export default [
     {
-        ignores: ["./cmake-*", "**/build*/*", "venv/*"]
+        ignores: ["./cmake-*", "**/build*/*", "venv/*", ".venv/*"]
     },
     {
         languageOptions: {

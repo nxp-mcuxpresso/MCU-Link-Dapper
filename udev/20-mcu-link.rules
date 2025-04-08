@@ -1,0 +1,25 @@
+# * ********************************************************************************************************* *
+# *
+# * Copyright 2025 Oidis
+# *
+# * SPDX-License-Identifier: BSD-3-Clause
+# * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
+# * or at https://spdx.org/licenses/BSD-3-Clause.html#licenseText
+# *
+# * ********************************************************************************************************* *
+
+# Copy these rules in to appropriate directory like '/etc/udev/rules.d/' on Ubuntu.
+#  sudo cp *.rules /etc/udev/rules.d
+#
+# To apply the changes you will need to restart system or force reload udev service
+#   sudo udevadm control --reload
+#   sudo udevadm trigger
+
+# cmsis-dap
+SUBSYSTEM=="usb", ATTR{idVendor}=="0d28", ATTR{idProduct}=="0204", MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="mculink"
+
+# lpc-link
+SUBSYSTEM=="usb", ATTR{idVendor}=="1fc9", ATTR{idProduct}=="0090", MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="mculink"
+
+# mcu-link
+SUBSYSTEM=="usb", ATTR{idVendor}=="1fc9", ATTR{idProduct}=="0143", MODE="0666", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="mculink"

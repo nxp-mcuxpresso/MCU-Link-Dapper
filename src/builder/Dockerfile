@@ -1,6 +1,7 @@
  #/* ********************************************************************************************************* *
  # *
  # * Copyright 2024 NXP
+ # * Copyright 2025 Oidis
  # *
  # * SPDX-License-Identifier: BSD-3-Clause
  # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -9,7 +10,7 @@
  # * ********************************************************************************************************* */
 
 FROM nxpwebix/webix-dapper-base:2024.1.0
-MAINTAINER Michal Kelnar "michal.kelnar@nxp.com"
+LABEL org.opencontainers.image.authors="michal@oidis.org"
 
 WORKDIR "/var/webix"
 COPY build.sh build.sh

@@ -12,6 +12,7 @@
 # * ********************************************************************************************************* *
 import argparse
 import cProfile
+import logging
 import os
 import sys
 from datetime import datetime
@@ -24,8 +25,14 @@ if __name__ == "__main__":
     parser.add_argument("--iterations", type=int, default=1, help="number of iterations")
     parser.add_argument("--profile", action="store_true", help="enable profiling")
     parser.add_argument("--list", action="store_true", help="list probes")
+    parser.add_argument("--verbose", action="store_true", help="verbose log")
 
     args = parser.parse_args()
+
+    log_level = logging.WARNING
+    if args.verbose:
+        log_level = logging.DEBUG
+        logging.basicConfig(level=log_level, format="[%(levelname)s] %(message)s")
 
     DapperFactory.set_wasm_path(
         os.path.abspath(
@@ -68,4 +75,4 @@ if __name__ == "__main__":
         cProfile.run("run_test()", os.path.abspath(os.path.dirname(__file__)) + "/profiling.prof")
     else:
         run_test()
-    print("\n*** I'm genius ***\n")
+    print("\n*** I'm genius, seriously! ***\n")
