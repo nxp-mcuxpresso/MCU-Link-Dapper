@@ -37,12 +37,16 @@ class HidInterface(Interface[hid.device]):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Returns true if interface is available."""
+        """
+        :return: True if the interface is available.
+        """
         return IMPORTS_AVAILABLE
 
     @classmethod
     def priority(cls) -> int:
-        """Returns priority. The lower the number, the higher the priority."""
+        """
+        :return: Priority. The lower the number, the higher the priority.
+        """
         return 3 if platform.system() == "Darwin" or platform.system() == "Windows" else 10
 
     def __init__(
@@ -93,7 +97,7 @@ class HidInterface(Interface[hid.device]):
     def open(self) -> None:
         """Open the HID interface connection.
 
-        :raises RuntimeError: If device is not initialized
+        :raises RuntimeError: If a device is not initialized
         """
         super().open()
 
@@ -105,7 +109,7 @@ class HidInterface(Interface[hid.device]):
             self._device.close()
 
     def write(self, data: Uint8Array) -> None:
-        """Write data to HID interface.
+        """Write data to the HID interface.
 
         :param data: Data to write
         """
@@ -121,7 +125,7 @@ class HidInterface(Interface[hid.device]):
             )
 
     def read(self) -> Uint8Array:
-        """Read data from HID interface.
+        """Read data from the HID interface.
 
         :return: Data read from interface
         :raises RuntimeError: If device endpoint is not opened

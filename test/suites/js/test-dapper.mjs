@@ -74,6 +74,10 @@ describe("test-dapper", function () {
             {
                 boardName: 'FRDM-MCXA153',
                 boardVendor: 'NXP',
+                capabilities: {
+                    jtag: true,
+                    swd: true
+                },
                 firmwareVer: '2.1.1',
                 productFwVer: '3.128',
                 productId: 'MCU-Link CMSIS-DAP V3.128',
@@ -107,6 +111,10 @@ describe("test-dapper", function () {
             {
                 boardName: 'FRDM-MCXN947',
                 boardVendor: 'NXP',
+                capabilities: {
+                    jtag: true,
+                    swd: true
+                },
                 firmwareVer: '2.1.1',
                 productFwVer: '3.128',
                 productId: 'MCU-Link CMSIS-DAP V3.128',
@@ -140,6 +148,10 @@ describe("test-dapper", function () {
             {
                 boardName: 'N/A',
                 boardVendor: 'N/A',
+                capabilities: {
+                    jtag: false,
+                    swd: true
+                },
                 firmwareVer: '1.10',
                 productFwVer: 'N/A',
                 productId: 'N/A',

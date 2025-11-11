@@ -4,6 +4,7 @@
 # * ********************************************************************************************************* *
 # *
 # * Copyright 2024 NXP
+# * Copyright 2025 Oidis
 # *
 # * SPDX-License-Identifier: BSD-3-Clause
 # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -26,6 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--profile", action="store_true", help="enable profiling")
     parser.add_argument("--list", action="store_true", help="list probes")
     parser.add_argument("--verbose", action="store_true", help="verbose log")
+    parser.add_argument("--use-jtag", action="store_true", help="use JTAG for probe connection")
 
     args = parser.parse_args()
 
@@ -55,9 +57,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     probe = DapperFactory.create_probe(probes[0])
+    probe.use_jtag = args.use_jtag
     probe.connect()
     probe.close()
+
     probe = DapperFactory.create_probe(probes[0])
+    probe.use_jtag = args.use_jtag
 
     print(f"\nSelected probe {probes[0].serial_no}")
 
@@ -65,11 +70,13 @@ if __name__ == "__main__":
 
     print(f"Probe info: {info.__dict__}")
 
+
     def run_test() -> None:
         dt = datetime.now()
         for _ in range(args.iterations):
             MockDapper.dpap_test(probe)
         print(f"elapsed: {(datetime.now() - dt).total_seconds()} s")
+
 
     if args.profile:
         cProfile.run("run_test()", os.path.abspath(os.path.dirname(__file__)) + "/profiling.prof")

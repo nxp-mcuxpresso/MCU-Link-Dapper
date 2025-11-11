@@ -8,14 +8,14 @@
     ],
     "licenseListVersion": "3.20"
   },
-  "name": "Dapper-MCU-Link-Dapper 2025.0.1",
+  "name": "Dapper-MCU-Link-Dapper 2025.2.0",
   "dataLicense": "CC0-1.0",
   "documentNamespace": "https://nxp.com/spdx/fb42fe97-4098-4d3f-9984-983f27061c3a",
   "packages": [
     {
       "SPDXID": "SPDXRef-package-fb42fe97-4098-4d3f-9984-983f27061c3a",
       "name": "Dapper",
-      "versionInfo": "MCU-Link-Dapper 2025.0.1",
+      "versionInfo": "MCU-Link-Dapper 2025.2.0",
       "licenseConcluded": "(BSD-3-Clause)",
       "licenseDeclared": "(BSD-3-Clause)",
       "downloadLocation": "NOASSERTION",

@@ -1,0 +1,68 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "spdxVersion": "SPDX-2.3",
+  "creationInfo": {
+    "created": "2025-10-07T12:03:29Z",
+    "creators": [
+      "Organization: NXP"
+    ],
+    "licenseListVersion": "3.20"
+  },
+  "name": "Dapper-MCU-Link-Dapper 2025.2.0",
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://nxp.com/spdx/bfe6187b-6e57-4b25-ae25-e96b3c5a2e78",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-package-bfe6187b-6e57-4b25-ae25-e96b3c5a2e78",
+      "name": "Dapper",
+      "versionInfo": "MCU-Link-Dapper 2025.2.0",
+      "licenseConcluded": "(BSD-3-Clause)",
+      "licenseDeclared": "(BSD-3-Clause)",
+      "downloadLocation": "https://github.com/nxp-mcuxpresso/mcu-link-dapper",
+      "originator": "Organization: NXP",
+      "supplier": "NOASSERTION",
+      "externalRefs": [],
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-package-3ef11001-38e4-4c36-99c2-e0d416e27bc6",
+      "name": "spsdk-mcu-link",
+      "versionInfo": "0.6.5",
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "downloadLocation": "https://pypi.org/project/spsdk-mcu-link/0.6.5",
+      "originator": "Organization: pypi",
+      "supplier": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:pypi/spsdk-mcu-link@0.6.5",
+          "referenceType": "purl"
+        },
+        {
+          "referenceCategory": "OTHER",
+          "referenceLocator": "3db3cae5-857c-4d7e-a035-33eb67d4cc39",
+          "referenceType": "BlackDuck-ComponentOrigin"
+        }
+      ],
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-package-bfe6187b-6e57-4b25-ae25-e96b3c5a2e78"
+    },
+    {
+      "spdxElementId": "SPDXRef-package-bfe6187b-6e57-4b25-ae25-e96b3c5a2e78",
+      "relationshipType": "DYNAMIC_LINK",
+      "relatedSpdxElement": "SPDXRef-package-3ef11001-38e4-4c36-99c2-e0d416e27bc6"
+    },
+    {
+      "spdxElementId": "SPDXRef-package-bfe6187b-6e57-4b25-ae25-e96b3c5a2e78",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-package-3ef11001-38e4-4c36-99c2-e0d416e27bc6"
+    }
+  ]
+}

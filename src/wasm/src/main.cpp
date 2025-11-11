@@ -1,6 +1,7 @@
 /* ********************************************************************************************************* *
  *
  * Copyright 2024 NXP
+ * Copyright 2025 Oidis
  *
  * SPDX-License-Identifier: BSD-3-Clause
  * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -37,28 +38,9 @@
 #endif
 #include "Logger.hpp"
 #include <iomanip>
+#include <iostream>
 
 #ifndef NATIVE_BUILD
-
-void stdoutHandler(const std::string &data) {
-    emscripten::val::global("stdout")(emscripten::val(data));
-}
-
-void stderrHandler(const std::string &data) {
-    emscripten::val::global("stderr")(emscripten::val(data));
-}
-
-namespace wix {
-    static Logger cout(stdoutHandler);
-    static Logger cerr(stderrHandler);
-}  // namespace wix
-
-emscripten::val getSupportedVendorIDs() {
-    // read it from embedded probetable.csv or find different way
-    // experimental: mculink/dap hardcoded for now: ARM-vid, NXP-vid
-    int probeIDs[] = {0xD28, 0x1fc9};
-    return emscripten::val(emscripten::typed_memory_view(2, probeIDs));
-}
 
 // read from probetable.csv
 const int packetSize = 64;
@@ -69,6 +51,14 @@ uint8_t *rxBuffer = new uint8_t[rxBufferSize];
 
 unsigned int txBufferSize = packetSize;
 uint8_t *txBuffer = new uint8_t[txBufferSize];
+
+void stdoutHandler(const std::string &data) {
+    emscripten::val::global("stdout")(emscripten::val(data));
+}
+
+void stderrHandler(const std::string &data) {
+    emscripten::val::global("stderr")(emscripten::val(data));
+}
 
 inline void readProbeData() {
     auto input = emscripten::val::global("readData")().await();
@@ -91,6 +81,343 @@ inline void writeReadProbeData() {
     writeProbeData();
     readProbeData();
 };
+
+namespace wix {
+    static Logger cout(stdoutHandler);
+    static Logger cerr(stderrHandler);
+}  // namespace wix
+
+namespace dap {
+    uint8_t swjPinStatus(uint8_t pin, uint8_t mask) {
+        txBuffer[0] = 0x10;
+        txBuffer[1] = pin;
+        txBuffer[2] = mask;
+        UINT32_INSERT(5000, txBuffer, 3);
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x10) {
+            throw std::runtime_error("HIF transfer error");
+        }
+        return rxBuffer[1];
+    }
+
+    int swjSequence(int bitcount, uint8_t *data) {
+        txBuffer[0] = 0x12;
+        txBuffer[1] = static_cast<uint8_t>(bitcount >= 256 ? 0 : bitcount);
+        memcpy(&(txBuffer[2]), data, (bitcount + 7) / 8);
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x12) {
+            return 0x83;
+        } else if (rxBuffer[1] != 0) {
+            return 255;
+        }
+        return 0;
+    }
+
+    void jtagSequence(int cycles, int tms, bool readTDO, int tdi) {
+        txBuffer[0] = 0x14;
+        txBuffer[1] = 1;
+        txBuffer[2] = ((cycles == 64 ? 0 : cycles) & 0x3f) | ((tms & 1) << 6) | (static_cast<int>(readTDO) << 7);
+
+        int bytes = (cycles + 7) / 8;
+        for (int i = 0; i <= bytes; i++) {
+            txBuffer[3 + i] = tdi & 0xff;
+            tdi >>= 8;
+        }
+
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x14) {
+            throw std::runtime_error("HWIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("Status fail");
+        }
+    }
+
+    inline void transferConfigure() {
+        txBuffer[0] = 0x04;
+        txBuffer[1] = 0x02;  // idle_cycles
+        UINT16_INSERT(0x0050, txBuffer, 2);
+        UINT16_INSERT(0x0000, txBuffer, 4);
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x04) {
+            throw std::runtime_error("HWIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("Status fail");
+        }
+    }
+
+    inline void swjClock() {
+        txBuffer[0] = 0x11;  // SWJ_Clock
+        UINT32_INSERT(1000000, txBuffer, 1);  // INITIAL_WIRE_SPEED 10000000, HID - 1000000
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x11) {
+            throw std::runtime_error("HWIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("Status fail");
+        }
+    }
+
+    inline void connect(bool jtag) {
+        txBuffer[0] = 0x02;  // Connect
+        txBuffer[1] = jtag ? 2 : 1;  // 1 = SWD, 2 = JTAG
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x02) {
+            throw std::runtime_error("HWIF transfer error");
+        } else if (rxBuffer[1] != (jtag ? 2 : 1)) {
+            throw std::runtime_error("Status fail");
+        }
+        wix::cout << (jtag ? "JTAG" : "SWD") << " connected" << std::endl;
+    }
+
+    inline void configureJTAG() {
+        txBuffer[0] = 0x15;  // JTAG Configure
+        txBuffer[1] = 0x01;  // Device count (default)
+        txBuffer[2] = 0x04;  // TAPs
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x15) {
+            throw std::runtime_error("HWIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("Status fail");
+        }
+    }
+
+    inline void configureSWD() {
+        txBuffer[0] = 0x13;  // SWD Configure
+        txBuffer[1] = 0x00;
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x13) {
+            throw std::runtime_error("HWIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("Status fail");
+        }
+    }
+
+    inline void lineReset() {
+        uint8_t data[7];
+        for (auto &index: data) {
+            index = 0xff;
+        }
+        auto status = swjSequence(51, data);
+        if (status != 0) {
+            wix::cout << "reset failed: " << status << std::endl;
+        }
+    }
+
+    void selectSWD() {
+        lineReset();
+
+        uint8_t data[32];
+        UINT16_INSERT(0xE79E, data, 0)
+        swjSequence(16, data);
+
+        lineReset();
+        data[0] = 0;
+        swjSequence(8, data);
+    }
+
+    void selectJTAG() {
+        lineReset();
+
+        uint8_t data[32];
+        UINT16_INSERT(0xE73C, data, 0)
+        swjSequence(16, data);
+
+        data[0] = 0xff;
+        swjSequence(8, data);
+
+        jtagSequence(6, 1, false, 0x3f);
+        jtagSequence(1, 0, false, 0x01);
+    }
+
+    void probeReset() {
+        last_ap = 0xffffffff;
+        txBuffer[0] = 0x81;  // ID_DAP_INFO: Vendor1
+        txBuffer[1] = 0;  // 1 for ISP reset
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x81) {
+            throw std::runtime_error("HIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("REDLINK status fail");
+        } else if (rxBuffer[2] <= 0) {
+            throw std::runtime_error("REDLINK status fail 2");
+        }
+    }
+
+    std::string readInfoParam(int code) {
+        txBuffer[0] = 0x00;
+        txBuffer[1] = code;
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x00) {
+            throw std::runtime_error("HWIF transfer error");
+        }
+        if (rxBuffer[1] == 0) {
+            return {"N/A"};
+        } else if (rxBuffer[1] == 1) {
+            return "";
+        }
+        return {reinterpret_cast<char *>(rxBuffer + 2), static_cast<std::size_t>(rxBuffer[1] - 1)};
+    }
+
+    int readInfoValue(int code) {
+        txBuffer[0] = 0x00;
+        txBuffer[1] = code;
+        writeReadProbeData();
+        int value = 0;
+        switch (rxBuffer[1]) {
+            case 0:
+                break;
+            case 1: {
+                value = static_cast<int>(rxBuffer[2]);
+                break;
+            }
+            case 2:
+                value = UINT16_EXTRACT(rxBuffer, 2);
+                break;
+        }
+        return value;
+    }
+
+    inline void writeDPAP(int tap, uint8_t address, uint32_t data) {
+        txBuffer[0] = 0x05;
+        txBuffer[1] = tap;
+        txBuffer[2] = 1;
+        txBuffer[3] = address;
+
+        UINT32_INSERT(data, txBuffer, 4);
+
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x05) {
+            throw std::runtime_error("HWIF transfer error");
+        }
+        if (rxBuffer[2] != 0x01) {
+            if (rxBuffer[2] == 0x02) {
+                throw std::runtime_error("WIRE ACK WAIT");
+            } else {
+                throw std::runtime_error("WIRE ACK FAULT");
+            }
+        } else if (rxBuffer[1] != 1) {
+            throw std::runtime_error("Status fail");
+        }
+    }
+
+    void writeBlockDPAP(int tap, uint8_t address, uint32_t size, uint32_t *data) {
+        uint32_t maxRepeatBlockPayload = (512 - 5) / 4;  // packet size 512
+        uint32_t payloadPerReport;
+        uint32_t index = 0;
+
+        if (size <= 0) {
+            throw std::runtime_error("Invalid block data size 1");
+        }
+        while (size) {
+            if (size >= maxRepeatBlockPayload) {
+                payloadPerReport = maxRepeatBlockPayload;
+            } else {
+                payloadPerReport = size;
+            }
+            txBuffer[0] = 0x06;
+            txBuffer[1] = tap;
+            UINT16_INSERT(payloadPerReport, txBuffer, 2);
+            txBuffer[4] = address;
+
+            memcpy(&txBuffer[5], &data[index], payloadPerReport * sizeof(uint32_t));
+
+            writeReadProbeData();
+
+            if (rxBuffer[0] != 0x06) {
+                throw std::runtime_error("HWIF transfer error");
+            }
+            if (rxBuffer[3] != 0x01) {
+                // ACK
+                if (rxBuffer[3] == 0x02) {
+                    throw std::runtime_error("WIRE ACK WAIT");
+                } else {
+                    throw std::runtime_error("WIRE ACK FAULT");
+                }
+            }
+            if ((rxBuffer[1] != txBuffer[2]) || (rxBuffer[2] != txBuffer[3])) {
+                throw std::runtime_error("Status fail");
+            }
+            size -= payloadPerReport;
+            index += payloadPerReport;
+        }
+    }
+
+    inline uint32_t readDPAP(int tap, uint8_t address) {
+        txBuffer[0] = 0x05;
+        txBuffer[1] = tap;
+        txBuffer[2] = 1;
+        txBuffer[3] = address;
+
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x05) {
+            throw std::runtime_error("HWIF transfer error");
+        }
+        if (rxBuffer[2] != 0x01) {
+            if (rxBuffer[2] == 0x02) {
+                throw std::runtime_error("WIRE ACK WAIT");
+            } else {
+                throw std::runtime_error("WIRE ACK FAULT");
+            }
+        } else if (rxBuffer[1] != 1) {
+            throw std::runtime_error("Status fail");
+        }
+        return UINT32_EXTRACT(rxBuffer, 3);
+    }
+
+    inline void readBlockDPAP(int tap, uint32_t address, uint32_t *size, uint32_t *data) {
+        uint32_t maxRepeatBlockPayload = (512 - 5) / 4;  // packet size 512
+        uint32_t payloadPerReport;
+        uint32_t index = 0;
+        if (*size <= 0) {
+            throw std::runtime_error("Invalid block data size 2");
+        }
+        while (*size) {
+            if (*size >= maxRepeatBlockPayload) {
+                payloadPerReport = maxRepeatBlockPayload;
+            } else {
+                payloadPerReport = *size;
+            }
+            txBuffer[0] = 0x06;
+            txBuffer[1] = tap;
+            UINT16_INSERT(1, txBuffer, 2);
+            txBuffer[4] = address;
+            writeReadProbeData();
+            if (rxBuffer[0] != 0x06) {
+                throw std::runtime_error("HWIF transfer error");
+            }
+            if (rxBuffer[3] != 0x01) {
+                // ACK
+                if (rxBuffer[3] == 0x02) {
+                    throw std::runtime_error("WIRE ACK WAIT");
+                } else {
+                    throw std::runtime_error("WIRE ACK FAULT");
+                }
+            }
+            if ((rxBuffer[1] != txBuffer[2]) || (rxBuffer[2] != txBuffer[3])) {
+                throw std::runtime_error("Status fail");
+            }
+            memcpy(&data[index], &rxBuffer[4], payloadPerReport * sizeof(uint32_t));
+            *size -= payloadPerReport;
+            index += payloadPerReport;
+        }
+    }
+
+    inline void disconnect() {
+        txBuffer[0] = 0x03;
+        writeReadProbeData();
+        if (rxBuffer[0] != 0x03) {
+            throw std::runtime_error("HIF transfer error");
+        } else if (rxBuffer[1] != 0) {
+            throw std::runtime_error("Status error");
+        }
+    }
+}  // namespace dap
+
+emscripten::val getSupportedVendorIDs() {
+    // read it from embedded probetable.csv or find different way
+    // experimental: mculink/dap hardcoded for now: ARM-vid, NXP-vid
+    int probeIDs[] = {0xD28, 0x1fc9};
+    return emscripten::val(emscripten::typed_memory_view(2, probeIDs));
+}
 
 struct DAPCapabilities {
     bool swd;
@@ -122,46 +449,12 @@ struct DAPInfo {
     DAPFirmwareInfo firmwareInfo{};
 };
 
-std::string readInfoParam(int code) {
-    txBuffer[0] = 0x00;
-    txBuffer[1] = code;
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x00) {
-        throw std::runtime_error("HWIF transfer error");
-    }
-    if (rxBuffer[1] == 0) {
-        return {"N/A"};
-    } else if (rxBuffer[1] == 1) {
-        return "";
-    }
-    return {reinterpret_cast<char *>(rxBuffer + 2), static_cast<std::size_t>(rxBuffer[1] - 1)};
-}
-
-int readInfoValue(int code) {
-    txBuffer[0] = 0x00;
-    txBuffer[1] = code;
-    writeReadProbeData();
-    int value = 0;
-    switch (rxBuffer[1]) {
-        case 0:
-            break;
-        case 1: {
-            value = static_cast<int>(rxBuffer[2]);
-            break;
-        }
-        case 2:
-            value = UINT16_EXTRACT(rxBuffer, 2);
-            break;
-    }
-    return value;
-}
-
 DAPFirmwareInfo getFirmwareInfo() {
     DAPFirmwareInfo firmwareInfo{};
-    firmwareInfo.firmwareVersion = readInfoParam(0x04);
-    firmwareInfo.productId = readInfoParam(0x02);
-    firmwareInfo.maxPacketCount = readInfoValue(0xfe);
-    firmwareInfo.maxPacketSize = readInfoValue(0xff);
+    firmwareInfo.firmwareVersion = dap::readInfoParam(0x04);
+    firmwareInfo.productId = dap::readInfoParam(0x02);
+    firmwareInfo.maxPacketCount = dap::readInfoValue(0xfe);
+    firmwareInfo.maxPacketSize = dap::readInfoValue(0xff);
     return firmwareInfo;
 }
 
@@ -177,43 +470,31 @@ DAPCapabilities getProbeDAPCap() {
     capabilities.manchester = (info0 & 0x08) != 0;
     capabilities.atomic = (info0 & 0x10) != 0;
     capabilities.swoStreaming = (info0 & 0x40) != 0;
-    capabilities.swoTraceBufferSize = readInfoValue(0xFD);
+    capabilities.swoTraceBufferSize = dap::readInfoValue(0xFD);
     return capabilities;
 }
 
 DAPInfo getProbeDAPInfo() {
     DAPInfo info{};
     getFirmwareInfo();
-    info.targetName = readInfoParam(0x06);
-    info.targetVendor = readInfoParam(0x05);
-    info.boardName = readInfoParam(0x08);
-    info.boardVendor = readInfoParam(0x07);
-    info.productId = readInfoParam(0x02);
-    info.vendorId = readInfoParam(0x01);
-    info.firmwareVer = readInfoParam(0x04);
-    info.productFwVer = readInfoParam(0x09);
-    info.serialNo = readInfoParam(0x03);
+    info.targetName = dap::readInfoParam(0x06);
+    info.targetVendor = dap::readInfoParam(0x05);
+    info.boardName = dap::readInfoParam(0x08);
+    info.boardVendor = dap::readInfoParam(0x07);
+    info.productId = dap::readInfoParam(0x02);
+    info.vendorId = dap::readInfoParam(0x01);
+    info.firmwareVer = dap::readInfoParam(0x04);
+    info.productFwVer = dap::readInfoParam(0x09);
+    info.serialNo = dap::readInfoParam(0x03);
     info.capabilities = getProbeDAPCap();
     info.firmwareInfo = getFirmwareInfo();
     return info;
 }
 
-uint8_t swjPinStatus(uint8_t pin, uint8_t mask) {
-    txBuffer[0] = 0x10;
-    txBuffer[1] = pin;
-    txBuffer[2] = mask;
-    UINT32_INSERT(5000, txBuffer, 3);
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x10) {
-        throw std::runtime_error("HIF transfer error");
-    }
-    return rxBuffer[1];
-}
-
 void holdReset(int value) {
     uint8_t pin = 0x00;
     uint8_t mask = 0x00;
-    uint8_t state = swjPinStatus(pin, mask);
+    uint8_t state = dap::swjPinStatus(pin, mask);
     uint8_t resetBit = (1 << 7);
     int retries = 2;
     mask = 0x80;
@@ -224,185 +505,9 @@ void holdReset(int value) {
         } else {
             pin |= resetBit;
         }
-        state = swjPinStatus(pin, mask);
+        state = dap::swjPinStatus(pin, mask);
         retries--;
     } while (retries && (((state & resetBit) >> 7) != value));
-}
-
-int SWJSequence(int bitcount, uint8_t *data) {
-    txBuffer[0] = 0x12;
-    txBuffer[1] = static_cast<uint8_t>(bitcount >= 256 ? 0 : bitcount);
-    memcpy(&(txBuffer[2]), data, (bitcount + 7) / 8);
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x12) {
-        return 0x83;
-    } else if (rxBuffer[1] != 0) {
-        return 255;
-    }
-    return 0;
-}
-
-inline void WriteDPAP(int tap, uint8_t address, uint32_t data) {
-    txBuffer[0] = 0x05;
-    txBuffer[1] = tap;
-    txBuffer[2] = 1;
-    txBuffer[3] = address;
-
-    UINT32_INSERT(data, txBuffer, 4);
-
-    // wix::cout < "write: ";
-    for (int i = 0; i < 8; ++i) {
-        // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(txBuffer[i]);
-    }
-    // wix::cout < " (" << data << ")" << std::endl;
-
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x05) {
-        throw std::runtime_error("HWIF transfer error");
-    }
-    if (rxBuffer[2] != 0x01) {
-        if (rxBuffer[2] == 0x02) {
-            throw std::runtime_error("WIRE ACK WAIT");
-        } else {
-            throw std::runtime_error("WIRE ACK FAULT");
-        }
-    } else if (rxBuffer[1] != 1) {
-        throw std::runtime_error("Status fail");
-    }
-}
-
-void WriteBlockDPAP(int tap, uint8_t address, uint32_t size, uint32_t *data) {
-    uint32_t maxRepeatBlockPayload = (512 - 5) / 4;  // packet size 512
-    uint32_t payloadPerReport;
-    uint32_t index = 0;
-
-    //  address &= 0x0d;  // write address
-
-    if (size <= 0) {
-        throw std::runtime_error("Invalid block data size 1");
-    }
-    while (size) {
-        if (size >= maxRepeatBlockPayload) {
-            payloadPerReport = maxRepeatBlockPayload;
-        } else {
-            payloadPerReport = size;
-        }
-        txBuffer[0] = 0x06;
-        txBuffer[1] = tap;
-        UINT16_INSERT(payloadPerReport, txBuffer, 2);
-        txBuffer[4] = address;
-
-        memcpy(&txBuffer[5], &data[index], payloadPerReport * sizeof(uint32_t));
-
-        // wix::cout < "write-block: ";
-        for (int i = 0; i < payloadPerReport + 4; ++i) {
-            // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(txBuffer[i]);
-        }
-        // wix::cout < std::endl;
-
-        writeReadProbeData();
-
-        if (rxBuffer[0] != 0x06) {
-            throw std::runtime_error("HWIF transfer error");
-        }
-        if (rxBuffer[3] != 0x01) {  // ACK
-            if (rxBuffer[3] == 0x02) {
-                throw std::runtime_error("WIRE ACK WAIT");
-            } else {
-                throw std::runtime_error("WIRE ACK FAULT");
-            }
-        }
-        if ((rxBuffer[1] != txBuffer[2]) || (rxBuffer[2] != txBuffer[3])) {
-            throw std::runtime_error("Status fail");
-        }
-        // wix::cout < "response-block: ";
-        for (int i = 0; i < UINT16_EXTRACT(rxBuffer, 1) + 1; ++i) {
-            // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(rxBuffer[i]);
-        }
-        // wix::cout < std::endl;
-        size -= payloadPerReport;
-        index += payloadPerReport;
-    }
-}
-
-inline uint32_t ReadDPAP(int tap, uint8_t address) {
-    txBuffer[0] = 0x05;
-    txBuffer[1] = tap;
-    txBuffer[2] = 1;
-    txBuffer[3] = address;
-
-    // wix::cout < "read-request: ";
-    //  for (int i = 0; i < 4; ++i) {
-    // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(txBuffer[i]);
-    //  }
-    // wix::cout < std::endl;
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x05) {
-        throw std::runtime_error("HWIF transfer error");
-    }
-    if (rxBuffer[2] != 0x01) {
-        if (rxBuffer[2] == 0x02) {
-            throw std::runtime_error("WIRE ACK WAIT");
-        } else {
-            throw std::runtime_error("WIRE ACK FAULT");
-        }
-    } else if (rxBuffer[1] != 1) {
-        throw std::runtime_error("Status fail");
-    }
-    // wix::cout < "read-data: ";
-    for (int i = 0; i < 4; ++i) {
-        // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(rxBuffer[i]);
-    }
-    // wix::cout < std::endl;
-    return UINT32_EXTRACT(rxBuffer, 3);
-}
-
-inline void ReadBlockDPAP(int tap, uint32_t address, uint32_t *size, uint32_t *data) {
-    uint32_t maxRepeatBlockPayload = (512 - 5) / 4;  // packet size 512
-    uint32_t payloadPerReport;
-    uint32_t index = 0;
-    if (*size <= 0) {
-        throw std::runtime_error("Invalid block data size 2");
-    }
-    while (*size) {
-        if (*size >= maxRepeatBlockPayload) {
-            payloadPerReport = maxRepeatBlockPayload;
-        } else {
-            payloadPerReport = *size;
-        }
-        txBuffer[0] = 0x06;
-        txBuffer[1] = tap;
-        UINT16_INSERT(1, txBuffer, 2);
-        txBuffer[4] = address;
-        // wix::cout < "read-block: ";
-        for (int i = 0; i < 5; ++i) {
-            // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(txBuffer[i]);
-        }
-        // wix::cout < std::endl;
-        writeReadProbeData();
-        if (rxBuffer[0] != 0x06) {
-            throw std::runtime_error("HWIF transfer error");
-        }
-        if (rxBuffer[3] != 0x01) {  // ACK
-            if (rxBuffer[3] == 0x02) {
-                throw std::runtime_error("WIRE ACK WAIT");
-            } else {
-                throw std::runtime_error("WIRE ACK FAULT");
-            }
-        }
-        if ((rxBuffer[1] != txBuffer[2]) || (rxBuffer[2] != txBuffer[3])) {
-            throw std::runtime_error("Status fail");
-        }
-        memcpy(&data[index], &rxBuffer[4], payloadPerReport * sizeof(uint32_t));
-        *size -= payloadPerReport;
-        index += payloadPerReport;
-        int size2 = UINT16_EXTRACT(rxBuffer, 1);
-        // wix::cout < "read-block-data (" << size2 << "): ";
-        for (int i = 0; i < size2 * sizeof(uint32_t); ++i) {
-            // wix::cout < std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(rxBuffer[4 + i]);
-        }
-        // wix::cout < std::endl;
-    }
 }
 
 std::map<std::pair<uint8_t, uint8_t>, uint8_t> REG_ADDR_TO_ID_MAP = {
@@ -424,7 +529,7 @@ inline uint32_t read_reg(int regID) {
         request |= (1 << 0);
     }
     request |= (regID % 4) << 2;
-    return ReadDPAP(0, request);
+    return dap::readDPAP(0, request);
 }
 
 inline void write_reg(uint8_t regID, uint32_t value) {
@@ -435,7 +540,7 @@ inline void write_reg(uint8_t regID, uint32_t value) {
         request |= (1 << 0);
     }
     request |= (regID % 4) * 4;
-    WriteDPAP(0, request, value);
+    dap::writeDPAP(0, request, value);
 }
 
 inline void write_ap(uint8_t address, uint32_t data) {
@@ -480,14 +585,10 @@ inline uint32_t coresight_reg_read(bool accessPort, uint32_t address) {
     } else {
         data = read_dp(address);
     }
-    // wix::cout < "Coresight read " << (accessPort ? "AP" : "DP") << ", address: 0x" << std::hex << std::setw(8) << std::setfill('0')
-    //         << static_cast<int>(address) << ", data: " << data << std::endl;
     return data;
 }
 
 inline void coresight_reg_write(bool accessPort, uint32_t address, uint32_t data) {
-    // wix::cout < "Coresight write " << (accessPort ? "AP" : "DP") << ", address: 0x" << std::hex << std::setw(8) << std::setfill('0')
-    //          << static_cast<int>(address) << ", data: " << data << std::endl;
     if (accessPort) {
         select_ap(address);
 
@@ -498,111 +599,34 @@ inline void coresight_reg_write(bool accessPort, uint32_t address, uint32_t data
     }
 }
 
-void WireConnect() {
-    last_ap = 0xffffffff;
-    txBuffer[0] = 0x02;  // Connect
-    txBuffer[1] = 1;  // 1 = swd
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x02) {
-        throw std::runtime_error("HWIF transfer error");
-    } else if (rxBuffer[1] != 1) {
-        throw std::runtime_error("Status fail");
-    }
-    wix::cout << "SWD connected" << std::endl;
+void WireConnect(bool useJTAG) {
+    dap::connect(useJTAG);
+    dap::swjClock();
+    dap::transferConfigure();
 
-    // SWJ clock
-    txBuffer[0] = 0x11;  // SWJ_Clock
-    UINT32_INSERT(1000000, txBuffer, 1);  // INITIAL_WIRE_SPEED 10000000, HID - 1000000
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x11) {
-        throw std::runtime_error("HWIF transfer error");
-    } else if (rxBuffer[1] != 0) {
-        throw std::runtime_error("Status fail");
-    }
-    wix::cout << "SWD clock" << std::endl;
-
-    txBuffer[0] = 0x04;
-    txBuffer[1] = 0x02;  // idle_cycles
-    UINT16_INSERT(0x0050, txBuffer, 2);
-    UINT16_INSERT(0x0000, txBuffer, 4);
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x04) {
-        throw std::runtime_error("HWIF transfer error");
-    } else if (rxBuffer[1] != 0) {
-        throw std::runtime_error("Status fail");
-    }
-    wix::cout << "SWD transfere configured" << std::endl;
-
-    // Transfer configure
-    txBuffer[0] = 0x13;  // ?? wtf, it should be 0x04 for transfer configure, this is swd configure, transfere missing!
-    txBuffer[1] = 0x00;
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x13) {
-        throw std::runtime_error("HWIF transfer error");
-    } else if (rxBuffer[1] != 0) {
-        throw std::runtime_error("Status fail");
-    }
-    wix::cout << "SWD configured" << std::endl;
-
-    // line reset
-    uint8_t data[32];
-    int bitcount = sizeof(data) * 8;
-    for (auto &index: data) {
-        index = 0xff;
-    }
-    auto status = SWJSequence(bitcount, data);
-
-    UINT16_INSERT(0xE79E, data, 0)
-    status = SWJSequence(16, data);
-    for (auto &index: data) {
-        index = 0xff;
-    }
-    status = SWJSequence(bitcount, data);
-
-    data[0] = 0;
-    status = SWJSequence(8, data);
-
-    if (!status) {
-        //  status = CoreReadIdCode(0);
-        //  wix::cout << "CoreID: " << status << std::endl;
-        wix::cout << "status: " << status << std::endl;
+    if (useJTAG) {
+        dap::configureJTAG();
+        dap::selectJTAG();
+    } else {
+        dap::configureSWD();
+        dap::selectSWD();
     }
 
     uint32_t size = 25;
     uint32_t buff[25];
-    ReadBlockDPAP(0, 0x02, &size, buff);
+    dap::readBlockDPAP(0, 0x02, &size, buff);
     auto idr = buff[0];
     wix::cout << "DPIDR(idr=" << std::dec << idr << ", partno=" << std::dec << static_cast<int>((idr & 0x0ff00000) >> 20)
               << ", version=" << static_cast<int>((idr & 0x0000f000) >> 12) << ", revision=" << static_cast<int>((idr & 0xf0000000) >> 28)
               << ", mindp=" << ((idr & 0x00010000) != 0 ? "true" : "false") << std::endl;
 
     size = 25;
-    ReadBlockDPAP(0, 0x06, &size, buff);
+    dap::readBlockDPAP(0, 0x06, &size, buff);
     wix::cout << "Checked Sticky Errors: " << std::hex << std::setw(8) << std::setfill('0') << buff[0] << std::endl;
 }
 
 void WireDisconnect() {
-    txBuffer[0] = 0x03;
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x03) {
-        throw std::runtime_error("HIF transfer error");
-    } else if (rxBuffer[1] != 0) {
-        throw std::runtime_error("Status error");
-    }
-}
-
-void ProbeReset() {
-    last_ap = 0xffffffff;
-    txBuffer[0] = 0x81;  // ID_DAP_INFO: Vendor1
-    txBuffer[1] = 0;  // 1 for ISP reset
-    writeReadProbeData();
-    if (rxBuffer[0] != 0x81) {
-        throw std::runtime_error("HIF transfer error");
-    } else if (rxBuffer[1] != 0) {
-        throw std::runtime_error("REDLINK status fail");
-    } else if (rxBuffer[2] <= 0) {
-        throw std::runtime_error("REDLINK status fail 2");
-    }
+    dap::disconnect();
 }
 
 void Reset() {
@@ -645,7 +669,7 @@ EMSCRIPTEN_BINDINGS(module) {
     emscripten::function("getProbeDAPInfo", &getProbeDAPInfo);
     emscripten::function("getSupportedVendorIDs", &getSupportedVendorIDs);
     emscripten::function("reset", &Reset);
-    emscripten::function("probeReset", &ProbeReset);
+    emscripten::function("probeReset", &dap::probeReset);
 
     /** Debugger API **/
     emscripten::function("connect", WireConnect);

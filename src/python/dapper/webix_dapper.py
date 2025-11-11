@@ -101,6 +101,23 @@ class WebixDapper:  # pylint: disable=too-many-public-methods
         self.write_data_handler: Optional[Callable] = None
 
         self.context_path = context_path
+        self._use_jtag = False
+
+    @property
+    def use_jtag(self) -> bool:
+        """Get the JTAG usage flag.
+
+        :return: True if JTAG is used, False otherwise, thus SWD is used
+        """
+        return self._use_jtag
+
+    @use_jtag.setter
+    def use_jtag(self, value: bool) -> None:
+        """Set the JTAG usage flag.
+
+        :param value: True if JTAG should be used, False to select SWD
+        """
+        self._use_jtag = value
 
     @property
     def module(self) -> WebixDapperWasm:
@@ -358,7 +375,7 @@ class WebixDapper:  # pylint: disable=too-many-public-methods
     def connect(self) -> None:
         """Connect to the device and control power."""
         # pylint: disable=no-member
-        self.module.connect()  # type: ignore[attr-defined]
+        self.module.connect(self.use_jtag)  # type: ignore[attr-defined]
         self.power_control(True)
         self._stdout_handler("System Power True")
         self.power_control(False)

@@ -66,6 +66,12 @@ export class ProbeInfo {
     boardVendor;
     boardName;
     productFwVer;
+    capabilities;
+}
+
+export class ProbeCapabilities {
+    swd;
+    jtag;
 }
 
 export class WebixDapper {
@@ -282,7 +288,7 @@ export class WebixDapper {
     }
 
     /**
-     * Reads key information from USB device.
+     * Reads key information from a USB device.
      * @return {Promise<ProbeInfo>}
      */
     async getProbeInfo() {
@@ -290,7 +296,13 @@ export class WebixDapper {
         const retVal = new ProbeInfo();
         for (let key in data) {
             if (key in retVal && key in data) {
-                retVal[key] = data[key];
+                if (key === "capabilities") {
+                    retVal[key] = new ProbeCapabilities();
+                    retVal[key].swd = data[key].swd;
+                    retVal[key].jtag = data[key].jtag;
+                } else {
+                    retVal[key] = data[key];
+                }
             }
         }
         return retVal;
@@ -311,12 +323,12 @@ export class WebixDapper {
     }
 
     /**
-     * Connect to target debugger
+     * Connect to the target debugger
      * @return {Promise<void>}
      */
     async Connect() {
         try {
-            await this.module.connect();
+            await this.module.connect(false);
         } catch (e) {
             console.error(e.message);
         }

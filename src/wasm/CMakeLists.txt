@@ -1,6 +1,7 @@
 # * ******************************************************************************************************* *
 # *
 # * Copyright 2024 NXP
+# * Copyright 2025 Oidis
 # *
 # * SPDX-License-Identifier: BSD-3-Clause
 # * The BSD-3-Clause license for this file can be found in the LICENSE.txt file included with this distribution
@@ -23,7 +24,7 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILES_MAIN})
 
 set(WASM_TARGETS "${WASM_TARGETS};${PROJECT_NAME}" PARENT_SCOPE)
 
-if (NATIVE_BUILD OR NOT(EMSCRIPTEN))
+if (NATIVE_BUILD OR NOT (EMSCRIPTEN))
     add_definitions(-DNATIVE_BUILD)
 
     set(WASM_COMMON)
